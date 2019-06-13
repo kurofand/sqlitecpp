@@ -19,17 +19,18 @@ void SqliteClient::connect()
 	this->connected=true;
 }
 
-void SqliteClient::executeQuery(const char* query, std::vector<std::string> &resVec)
+std::optional<std::vector<std::string>> *SqliteClient::executeQuery(const char* query)
 {
 	if(!this->connected)
-		return;
+		return nullptr;
+	auto *res=new std::optional<std::vector<std::string>>();
 	std::string queryType;
 	uint8_t i=0;
-	while(query[i]!=*" ")
+	while(query[i]!=' ')
 		queryType+=query[i++];
 	if(queryType=="SELECT")
 	{
-		std::vector<std::string> *selectRes=new std::vector<std::string>();
+		std::vector<std::string> selectRes;
 		sqlite3_stmt *stmt;
 		sqlite3_prepare_v2(db, query, -1, &stmt, NULL);
 		uint8_t colCount=sqlite3_column_count(stmt);
@@ -38,22 +39,23 @@ void SqliteClient::executeQuery(const char* query, std::vector<std::string> &res
 		for(uint8_t i=0;i<colCount;i++)
 			colNames.append(std::string((char *)sqlite3_column_name(stmt, i))+"|");
 		colNames.pop_back();
-		selectRes->push_back(colNames);
+		selectRes.push_back(colNames);
 		while(sqlite3_column_text(stmt, 0))
 		{
 			std::string str;
 			for(uint8_t i=0;i<colCount;i++)
 				str.append(std::string((char *)sqlite3_column_text(stmt, i))+ "|");
 			str.pop_back();
-			selectRes->push_back(str);
+			selectRes.push_back(str);
 			sqlite3_step(stmt);
 		}
-		resVec=*selectRes;
-		delete selectRes;
+		res->emplace(selectRes);
+		return res;
 	}
 	else
 	{
 		sqlite3_exec(db, query, NULL, 0, 0);
+		return nullptr;
 	}
 }
 
@@ -66,8 +68,6 @@ void SqliteClient::closeConnection()
 
 SqliteClient::~SqliteClient()
 {
-//просто для проверки на случай если сам забыл закрыть
-//кстати интересно а что случается если не закрыть?
 	this->closeConnection();
 }
 
